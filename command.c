@@ -10,6 +10,10 @@
 #define LSH_TOK_BUFSIZE 64
 #define LSH_TOK_DELIM " \t\r\n\a"
 
+char *builtin_str[] = {"cd", "help", "exit", "pwd", "echo", "clear"};
+int (*builtin_func[])(char **) = {&lsh_cd, &lsh_help, &lsh_exit, &lsh_pwd, &lsh_echo, &lsh_clear};
+
+
 char *read_line(void) {
     int bufsize = LSH_RL_BUFSIZE, position = 0;
     char *buffer = malloc(bufsize * sizeof(char));
@@ -43,46 +47,62 @@ char *read_line(void) {
 char **split_line(char *line) {
     int bufsize = LSH_TOK_BUFSIZE, position = 0;
     char **tokens = malloc(bufsize * sizeof(char *));
-    char *token;
+
+    char *token; 
+    int i = 0, j = 0;
+
+    int in_quotes = 0; // Flag to indicate if we are inside quotes
+    int escaping = 0; // Flag to indicate if we are escaping a character
 
     if (!tokens) {
-        fprintf(stderr, "lsh: assigment error\n");
+        fprintf(stderr, "lsh: allocation error\n");
         exit(EXIT_FAILURE);
     }
 
-    token = strtok(line, LSH_TOK_DELIM);
-    while (token != NULL) {
-        tokens[position++] = token;
+    for (i = 0; line[i] != '\0'; i++) {
+        if (line[i] == '\\' && !escaping) {
+            escaping = 1; continue; // Skip the next character, as it's escaped
+        }
 
-        if (position >= bufsize) {
-            bufsize += LSH_TOK_BUFSIZE;
-            tokens = realloc(tokens, bufsize * sizeof(char *));
-            if (!tokens) {
-                fprintf(stderr, "lsh: assigment error\n");
-                exit(EXIT_FAILURE);
+        // Handle opening/closing quotes
+        if (line[i] == '"' && !escaping) {
+            in_quotes = !in_quotes;  continue; // Skip the quote itself
+        }
+
+        // Handle tokenization: handle spaces only if we're not inside quotes
+        if ((line[i] == ' ' || line[i] == '\t') && !in_quotes && !escaping && j > 0) {
+            tokens[position] = malloc(j + 1);
+            strncpy(tokens[position], &line[i - j], j);
+            tokens[position][j] = '\0';
+            position++;
+            j = 0;
+            
+        } else {
+            // Add current character to the current token
+            if (j == 0 && position >= bufsize) {
+                bufsize += LSH_TOK_BUFSIZE;
+                tokens = realloc(tokens, bufsize * sizeof(char *));
+
+                if (!tokens) {
+                    fprintf(stderr, "lsh: allocation error\n");
+                    exit(EXIT_FAILURE);
+                }
             }
+            
+            line[i] == '\\' ? (escaping = 1) : (escaping = 0); // Reset escape flag
+            j++;
         }
-
-        token = strtok(NULL, LSH_TOK_DELIM);
+    }
+    
+    if (j > 0) { // Add last token if necessary
+        tokens[position] = malloc(j + 1);
+        strncpy(tokens[position], &line[i - j], j);
+        tokens[position][j] = '\0';
+        position++;
     }
 
-    tokens[position] = NULL;
+    tokens[position] = NULL; // Null-terminate the array
     return tokens;
-}
-
-int builtin_cd(char **args) {
-    if (args[1] == NULL) {
-        fprintf(stderr, "lsh: an argument was expected for \"cd\"\n");
-    } else {
-        if (chdir(args[1]) != 0) {
-            perror("lsh");
-        }
-    }
-    return 1;
-}
-
-int builtin_exit(char **args) {
-    return 0;
 }
 
 int launch_process(char **args) {
@@ -117,4 +137,50 @@ int execute_command(char **args) {
     }
 
     return launch_process(args);
+}
+
+int lsh_cd(char **args) {
+    if (args[1] == NULL) {
+        fprintf(stderr, "lsh: an argument was expected for \"cd\"\n");
+    } else {
+        if (chdir(args[1]) != 0) {
+            perror("lsh");
+        }
+    }
+    return 1;
+}
+
+int lsh_help(char **args) {
+    printf("Shell built-in commands:\n");
+    printf("  cd [dir]   Change directory\n");
+    printf("  help       Display this help message\n");
+    printf("  exit       Exit the shell\n");
+    return 1;
+}
+
+int lsh_exit(char **args) {
+    return 0; // Exiting the shell
+}
+
+nt lsh_pwd(char **args) {
+    char cwd[1024];
+    if (getcwd(cwd, sizeof(cwd)) != NULL) {
+        printf("%s\n", cwd);
+    } else {
+        perror("lsh");
+    }
+    return 1;
+}
+
+int lsh_echo(char **args) {
+    for (int i = 1; args[i] != NULL; i++) {
+        printf("%s ", args[i]);
+    }
+    printf("\n");
+    return 1;
+}
+
+int lsh_clear(char **args) {
+    printf("\033[H\033[J"); // ANSI escape sequence to clear the screen
+    return 1;
 }
