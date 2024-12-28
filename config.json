@@ -1,0 +1,11 @@
+{
+    "PATH": "/usr/local/bin:/usr/bin:/bin",
+    "EDITOR": "vim",
+    "PROMPT": "$ ",
+    "aliases": {
+      "ll": "ls -l",
+      "la": "ls -a",
+      "rm": "rm -i"
+    }
+  }
+  
