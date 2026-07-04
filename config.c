@@ -9,14 +9,25 @@ void load_config(int argc, char **argv) {
         FILE *file = fopen(argv[1], "r");
         if (!file) {
             perror("Error opening configuration file");
-            exit(EXIT_FAILURE);
+            return;
         }
 
         fseek(file, 0, SEEK_END);
         long length = ftell(file);
         fseek(file, 0, SEEK_SET);
+        if (length < 0) {
+            fprintf(stderr, "Error reading configuration file\n");
+            fclose(file);
+            return;
+        }
         char *data = malloc(length + 1);
-        fread(data, 1, length, file);
+        if (!data) {
+            fprintf(stderr, "Error allocating memory for configuration file\n");
+            fclose(file);
+            return;
+        }
+        size_t read = fread(data, 1, length, file);
+        data[read] = '\0';
         fclose(file);
 
         cJSON *config = cJSON_Parse(data);
